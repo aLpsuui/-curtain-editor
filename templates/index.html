@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Curtain Style Editor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=DM+Sans:wght@300;400&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cream: #f7f3ee;
+      --linen: #e8e0d5;
+      --oak:   #b08c6a;
+      --bark:  #6b4f35;
+      --ink:   #2a2118;
+      --error: #c0392b;
+      --selected-border: #6b4f35;
+    }
+
+    body {
+      background-color: var(--cream);
+      font-family: 'DM Sans', sans-serif;
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 20px;
+    }
+
+    header { text-align: center; margin-bottom: 40px; }
+    header h1 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--bark);
+    }
+    header p { margin-top: 8px; font-size: 0.95rem; font-weight: 300; color: var(--oak); }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--linen);
+      border-radius: 12px;
+      padding: 36px;
+      width: 100%;
+      max-width: 620px;
+      box-shadow: 0 4px 24px rgba(107,79,53,0.07);
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed var(--linen);
+      border-radius: 8px;
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.dragover { border-color: var(--oak); background: var(--cream); }
+    .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .drop-zone .icon { font-size: 2rem; margin-bottom: 8px; }
+    .drop-zone p  { font-size: 0.88rem; color: var(--oak); }
+    .drop-zone strong { color: var(--bark); }
+
+    #preview-wrap { margin-top: 14px; display: none; }
+    #preview-wrap img {
+      width: 100%; border-radius: 6px;
+      border: 1px solid var(--linen);
+      max-height: 260px; object-fit: cover;
+    }
+
+    /* Section label */
+    .section-label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 400;
+      color: var(--bark);
+      margin: 28px 0 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    /* Curtain style cards grid */
+    .curtain-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .curtain-card {
+      border: 2px solid var(--linen);
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+      background: var(--cream);
+      position: relative;
+    }
+    .curtain-card:hover {
+      border-color: var(--oak);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 14px rgba(107,79,53,0.12);
+    }
+    .curtain-card.selected {
+      border-color: var(--bark);
+      box-shadow: 0 0 0 3px rgba(107,79,53,0.15);
+    }
+    .curtain-card.selected::after {
+      content: '✓';
+      position: absolute;
+      top: 6px; right: 8px;
+      background: var(--bark);
+      color: #fff;
+      font-size: 0.7rem;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold;
+      line-height: 20px;
+      text-align: center;
+    }
+
+    /* Curtain swatch — CSS-drawn curtain preview */
+    .curtain-swatch {
+      height: 90px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .curtain-card .card-label {
+      padding: 7px 8px;
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: var(--bark);
+      text-align: center;
+      line-height: 1.3;
+      background: #fff;
+    }
+
+    /* Hidden radio inputs */
+    .curtain-card input[type="radio"] { display: none; }
+
+    /* Submit button */
+    button[type="submit"] {
+      margin-top: 24px;
+      width: 100%;
+      padding: 14px;
+      background: var(--bark);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    button[type="submit"]:hover  { background: var(--oak); }
+    button[type="submit"]:active { transform: scale(0.98); }
+    button[type="submit"]:disabled { background: var(--linen); color: var(--oak); cursor: not-allowed; }
+
+    #status {
+      margin-top: 16px; font-size: 0.88rem;
+      color: var(--oak); text-align: center; min-height: 20px;
+    }
+    #status.error { color: var(--error); }
+
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid var(--linen); border-top-color: var(--oak);
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #result { margin-top: 40px; width: 100%; max-width: 620px; display: none; }
+    #result h2 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.4rem; color: var(--bark); margin-bottom: 12px;
+    }
+    #result img {
+      width: 100%; border-radius: 10px;
+      border: 1px solid var(--linen);
+      box-shadow: 0 4px 20px rgba(107,79,53,0.1);
+    }
+    #download-btn {
+      display: block; margin-top: 14px; text-align: center;
+      padding: 11px; background: var(--cream);
+      border: 1px solid var(--oak); border-radius: 8px;
+      color: var(--bark); font-size: 0.9rem; text-decoration: none;
+      transition: background 0.2s;
+    }
+    #download-btn:hover { background: var(--linen); }
+
+    /* Selected style badge */
+    #selected-style-name {
+      margin-top: 10px;
+      font-size: 0.82rem;
+      color: var(--oak);
+      text-align: center;
+      font-style: italic;
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Curtain Style Editor</h1>
+    <p>Upload a room photo · pick a curtain style · get an AI-edited result</p>
+  </header>
+
+  <div class="card">
+    <form id="upload-form">
+
+      <!-- Drop zone -->
+      <div class="drop-zone" id="drop-zone">
+        <input type="file" name="image" id="image-input" accept="image/png,image/jpeg,image/webp" required />
+        <div class="icon">🖼️</div>
+        <p><strong>Click to upload</strong> or drag & drop</p>
+        <p>PNG, JPG or WEBP · max 10 MB</p>
+      </div>
+
+      <div id="preview-wrap">
+        <img id="preview-img" src="" alt="Preview" />
+      </div>
+
+      <!-- Curtain Style Selector -->
+      <span class="section-label">Choose Curtain Style</span>
+
+      <div class="curtain-grid" id="curtain-grid">
+        <!-- Cards injected by JS -->
+      </div>
+
+      <div id="selected-style-name"></div>
+
+      <!-- Hidden prompt sent to backend -->
+      <input type="hidden" name="prompt" id="prompt-hidden" />
+
+      <button type="submit" id="submit-btn">✦ Apply Curtain Style</button>
+      <div id="status"></div>
+
+    </form>
+  </div>
+
+  <div id="result">
+    <h2>✦ Your Edited Room</h2>
+    <img id="result-img" src="" alt="Edited image" />
+    <a id="download-btn" href="#" download="edited-room.png">⬇ Download Image</a>
+  </div>
+
+  <script>
+    // ── Curtain style definitions ──────────────────────────────────────────────
+    const CURTAIN_STYLES = [
+      {
+        id: "sheer_linen",
+        label: "Sheer Linen",
+        description: "Light & airy",
+        prompt: "Replace the curtains with elegant white sheer linen curtains, soft natural light filtering gently through the fabric, flowing and minimal",
+        swatchStyle: "background: linear-gradient(180deg, #f5f0ea 0%, #e8ddd0 40%, #f0ebe3 100%); opacity: 0.95;",
+        folds: "rgba(200,185,165,0.5)"
+      },
+      {
+        id: "velvet_navy",
+        label: "Velvet Navy",
+        description: "Rich & dramatic",
+        prompt: "Replace the curtains with luxurious deep navy blue velvet curtains, heavy and opulent with rich fabric folds, floor-length, dramatic and elegant",
+        swatchStyle: "background: linear-gradient(180deg, #1a2a4a 0%, #0d1b35 50%, #1a2a4a 100%);",
+        folds: "rgba(255,255,255,0.07)"
+      },
+      {
+        id: "blackout_charcoal",
+        label: "Blackout",
+        description: "Dark & minimal",
+        prompt: "Replace the curtains with sleek charcoal grey blackout curtains, matte fabric, modern and minimal, clean straight lines",
+        swatchStyle: "background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 50%, #3a3a3a 100%);",
+        folds: "rgba(255,255,255,0.06)"
+      },
+      {
+        id: "floral_cotton",
+        label: "Floral Cotton",
+        description: "Soft & botanical",
+        prompt: "Replace the curtains with charming white cotton curtains with a delicate floral print in soft pastel pink and green tones, light and cottage-style",
+        swatchStyle: "background: linear-gradient(180deg, #f9f3f0 0%, #f2e8e4 50%, #f9f3f0 100%);",
+        folds: "rgba(210,170,160,0.4)"
+      },
+      {
+        id: "silk_cream",
+        label: "Silk Cream",
+        description: "Luxe & luminous",
+        prompt: "Replace the curtains with sumptuous cream silk curtains with a subtle sheen, cascading floor-length folds, soft light reflecting on the fabric, refined and opulent",
+        swatchStyle: "background: linear-gradient(180deg, #f8f3e6 0%, #ede4cc 40%, #f5f0e0 100%);",
+        folds: "rgba(255,240,200,0.5)"
+      },
+      {
+        id: "roman_blind",
+        label: "Roman Blind",
+        description: "Structured & modern",
+        prompt: "Replace the curtains with clean white Roman blinds, neatly folded horizontal pleats, minimalist and contemporary, halfway open letting in soft light",
+        swatchStyle: "background: linear-gradient(180deg, #f0ece6 0%, #e4ddd4 100%);",
+        folds: "rgba(180,165,148,0.45)"
+      },
+      {
+        id: "boho_macrame",
+        label: "Boho Macramé",
+        description: "Textured & earthy",
+        prompt: "Replace the curtains with handwoven boho macramé curtain panels in natural off-white cotton rope, open weave pattern, warm and earthy, bohemian style",
+        swatchStyle: "background: linear-gradient(180deg, #e8dcc8 0%, #d4c4a8 50%, #e8dcc8 100%);",
+        folds: "rgba(160,130,90,0.3)"
+      },
+      {
+        id: "striped_linen",
+        label: "Striped Linen",
+        description: "Classic & breezy",
+        prompt: "Replace the curtains with casual blue and white vertically striped linen curtains, relaxed Mediterranean style, light and airy",
+        swatchStyle: "background: repeating-linear-gradient(90deg, #dae8f5 0px, #dae8f5 12px, #f5f9fd 12px, #f5f9fd 24px);",
+        folds: "rgba(150,190,220,0.25)"
+      },
+      {
+        id: "velvet_emerald",
+        label: "Velvet Emerald",
+        description: "Bold & jewel-toned",
+        prompt: "Replace the curtains with rich emerald green velvet curtains, floor-length, heavy luxurious fabric with deep folds, jewel-toned and dramatic",
+        swatchStyle: "background: linear-gradient(180deg, #1a4a2e 0%, #0f3320 50%, #1a4a2e 100%);",
+        folds: "rgba(255,255,255,0.07)"
+      },
+    ];
+
+    // ── Build curtain cards ────────────────────────────────────────────────────
+    const grid = document.getElementById('curtain-grid');
+    let selectedId = CURTAIN_STYLES[0].id;
+
+    CURTAIN_STYLES.forEach((style, i) => {
+      const card = document.createElement('div');
+      card.className = 'curtain-card' + (i === 0 ? ' selected' : '');
+      card.dataset.id = style.id;
+
+      // SVG curtain swatch
+      card.innerHTML = `
+        <div class="curtain-swatch">
+          <svg width="100%" height="100%" viewBox="0 0 120 90" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+            <rect width="120" height="90" style="${style.swatchStyle}" />
+            <!-- Left panel folds -->
+            <path d="M10,0 Q18,22 12,45 Q6,68 14,90 L30,90 Q22,68 28,45 Q34,22 26,0Z" fill="${style.folds}" />
+            <path d="M26,0 Q34,22 28,45 Q22,68 30,90 L46,90 Q38,68 44,45 Q50,22 42,0Z" fill="${style.folds}" />
+            <!-- Right panel folds -->
+            <path d="M74,0 Q82,22 76,45 Q70,68 78,90 L94,90 Q86,68 92,45 Q98,22 90,0Z" fill="${style.folds}" />
+            <path d="M90,0 Q98,22 92,45 Q86,68 94,90 L110,90 Q102,68 108,45 Q114,22 106,0Z" fill="${style.folds}" />
+            <!-- Centre gap highlight -->
+            <rect x="46" y="0" width="28" height="90" fill="rgba(255,255,255,0.06)" />
+            <!-- Top rod -->
+            <rect x="0" y="0" width="120" height="5" fill="rgba(0,0,0,0.12)" rx="2"/>
+          </svg>
+        </div>
+        <div class="card-label">${style.label}<br><span style="color:var(--oak);font-size:0.7rem">${style.description}</span></div>
+        <input type="radio" name="curtain_style" value="${style.id}" ${i === 0 ? 'checked' : ''} />
+      `;
+
+      card.addEventListener('click', () => selectStyle(style.id));
+      grid.appendChild(card);
+    });
+
+    function selectStyle(id) {
+      selectedId = id;
+      document.querySelectorAll('.curtain-card').forEach(c => {
+        c.classList.toggle('selected', c.dataset.id === id);
+        c.querySelector('input[type="radio"]').checked = c.dataset.id === id;
+      });
+      const style = CURTAIN_STYLES.find(s => s.id === id);
+      document.getElementById('selected-style-name').textContent = `Selected: ${style.label} — ${style.description}`;
+    }
+
+    // Init label
+    selectStyle(CURTAIN_STYLES[0].id);
+
+    // ── File preview ───────────────────────────────────────────────────────────
+    const imageInput = document.getElementById('image-input');
+    const dropZone   = document.getElementById('drop-zone');
+    const previewWrap= document.getElementById('preview-wrap');
+    const previewImg = document.getElementById('preview-img');
+
+    imageInput.addEventListener('change', () => {
+      const file = imageInput.files[0];
+      if (!file) return;
+      previewImg.src = URL.createObjectURL(file);
+      previewWrap.style.display = 'block';
+    });
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) {
+        imageInput.files = e.dataTransfer.files;
+        imageInput.dispatchEvent(new Event('change'));
+      }
+    });
+
+    // ── Form submit ────────────────────────────────────────────────────────────
+    const form       = document.getElementById('upload-form');
+    const submitBtn  = document.getElementById('submit-btn');
+    const statusEl   = document.getElementById('status');
+    const resultBox  = document.getElementById('result');
+    const resultImg  = document.getElementById('result-img');
+    const downloadBtn= document.getElementById('download-btn');
+    const promptHidden = document.getElementById('prompt-hidden');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (!imageInput.files[0]) { setStatus('Please select an image first.', true); return; }
+
+      // Inject the prompt for the selected style
+      const style = CURTAIN_STYLES.find(s => s.id === selectedId);
+      promptHidden.value = style.prompt;
+
+      submitBtn.disabled = true;
+      resultBox.style.display = 'none';
+      setStatus(`<span class="spinner"></span> Applying <strong>${style.label}</strong> curtains… 20–40 sec`);
+
+      const formData = new FormData(form);
+
+      try {
+        const res  = await fetch('/edit', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data.error) {
+          setStatus('Error: ' + data.error, true);
+        } else {
+          const src = data.is_url ? data.image : 'data:image/png;base64,' + data.image;
+          resultImg.src    = src;
+          downloadBtn.href = src;
+          resultBox.style.display = 'block';
+          resultBox.scrollIntoView({ behavior: 'smooth' });
+          setStatus('');
+        }
+      } catch (err) {
+        setStatus('Network error: ' + err.message, true);
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    function setStatus(html, isError = false) {
+      statusEl.innerHTML = html;
+      statusEl.className = isError ? 'error' : '';
+    }
+  </script>
+
+</body>
+</html>
